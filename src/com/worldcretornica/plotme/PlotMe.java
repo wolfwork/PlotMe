@@ -14,9 +14,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeMap;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 import net.milkbowl.vault.economy.Economy;
@@ -38,11 +38,12 @@ import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.mcstats.Metrics;
+import org.mcstats.Metrics.Graph;
 import org.yaml.snakeyaml.Yaml;
 
 import com.griefcraft.model.Protection;
 import com.sk89q.worldedit.bukkit.WorldEditPlugin;
-import com.worldcretornica.plotme.Metrics.Graph;
 import com.worldcretornica.plotme.listener.PlotDenyListener;
 import com.worldcretornica.plotme.listener.PlotListener;
 import com.worldcretornica.plotme.listener.PlotWorldEditListener;
@@ -68,7 +69,7 @@ public class PlotMe extends JavaPlugin
     public static Boolean autoUpdate;
     public static Boolean allowToDeny;
     
-    public static Map<String, PlotMapInfo> plotmaps = null;
+    public static ConcurrentHashMap<String, PlotMapInfo> plotmaps = null;
     
     public static WorldEditPlugin we = null;
     public static Economy economy = null;
@@ -77,8 +78,6 @@ public class PlotMe extends JavaPlugin
     private static HashSet<String> playersignoringwelimit = null;
     private static HashMap<String, String> captions;
     
-    private static Boolean update = false;
-    
     public static World worldcurrentlyprocessingexpired;
     public static CommandSender cscurrentlyprocessingexpired;
     public static Integer counterexpired;
@@ -86,6 +85,8 @@ public class PlotMe extends JavaPlugin
     public static Boolean defaultWEAnywhere;
     
     protected static PlotMe self = null;
+    
+    Boolean initialized = false;
 	
 	public void onDisable()
 	{	
@@ -113,7 +114,6 @@ public class PlotMe extends JavaPlugin
 		usinglwc = null;
 		playersignoringwelimit = null;
 		captions = null;
-		update = null;
 		worldcurrentlyprocessingexpired = null;
 		cscurrentlyprocessingexpired = null;
 		counterexpired = null;
@@ -121,11 +121,14 @@ public class PlotMe extends JavaPlugin
 		defaultWEAnywhere = null;
 		self = null;
 		allowToDeny = null;
+		initialized = null;
 	}
 	
 	public void onEnable()
 	{
-		initialize();
+	    self = this;
+	    
+	    initialize();
 		
 		doMetric();
 		
@@ -155,30 +158,12 @@ public class PlotMe extends JavaPlugin
 		}
 				
 		getCommand("plotme").setExecutor(new PMCommand(this));
-				
-		setupUpdater();
-				
-		self = this;
+		
+		initialized = true;
+		
+		SqlManager.plotConvertToUUIDAsynchronously();
 	}
-	
-	private void setupUpdater()
-	{
-		if (autoUpdate)
-		{
-			if (advancedlogging)
-			{
-				logger.info("Checking for a new update...");
-			}
-			
-			Updater updater = new Updater(this, NAME, this.getFile(), Updater.UpdateType.DEFAULT, false);
-			update = updater.getResult() != Updater.UpdateResult.NO_UPDATE;
-			
-			if (advancedlogging)
-			{
-				logger.info("Update available: " + update);
-			}
-		}
-	}	
+
 	
 	private void doMetric()
 	{
@@ -373,7 +358,7 @@ public class PlotMe extends JavaPlugin
 			worlds = config.getConfigurationSection("worlds");
 		}
 		
-		plotmaps = new HashMap<String, PlotMapInfo>();
+		plotmaps = new ConcurrentHashMap<String, PlotMapInfo>();
 		
 		for(String worldname : worlds.getKeys(false))
 		{
@@ -661,6 +646,9 @@ public class PlotMe extends JavaPlugin
 		protections.add(Material.BEACON.getId());
 		protections.add(Material.FLOWER_POT.getId());
 		protections.add(Material.ANVIL.getId());
+		protections.add(Material.DISPENSER.getId());
+		protections.add(Material.DROPPER.getId());
+		protections.add(Material.HOPPER.getId());
 		
 		return protections;
 	}
@@ -675,6 +663,7 @@ public class PlotMe extends JavaPlugin
 		preventeditems.add("" + Material.MINECART.getId());
 		preventeditems.add("" + Material.POWERED_MINECART.getId());
 		preventeditems.add("" + Material.STORAGE_MINECART.getId());
+		preventeditems.add("" + Material.HOPPER_MINECART.getId());
 		preventeditems.add("" + Material.BOAT.getId());
 		
 		return preventeditems;
