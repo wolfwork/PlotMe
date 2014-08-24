@@ -1,13 +1,14 @@
 package com.worldcretornica.plotme;
 
+import org.bukkit.Location;
+import org.bukkit.World;
+import org.bukkit.block.Biome;
+import org.bukkit.generator.BlockPopulator;
+import org.bukkit.generator.ChunkGenerator;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-
-import org.bukkit.Location;
-import org.bukkit.World;
-import org.bukkit.generator.BlockPopulator;
-import org.bukkit.generator.ChunkGenerator;
 
 public class PlotGen extends ChunkGenerator {
 
@@ -33,7 +34,7 @@ public class PlotGen extends ChunkGenerator {
         floor1 = 5;
         floor2 = 5;
         temppmi = null;
-        PlotMe.logger.warning(PlotMe.PREFIX + " Unable to find configuration, using defaults");
+        PlotMe.logger.warning("Unable to find configuration, using defaults");
     }
 
     public PlotGen(PlotMapInfo pmi) {
@@ -58,10 +59,6 @@ public class PlotGen extends ChunkGenerator {
         double size = plotsize + pathsize;
         int valx;
         int valz;
-
-        // floor1 = (short)Material.WOOL.getId();
-        // floor2 = (short)Material.WOOD.getId();
-        // byte air = (byte)Material.AIR.getId();
 
         double n1;
         double n2;
@@ -89,6 +86,8 @@ public class PlotGen extends ChunkGenerator {
             for (int z = 0; z < 16; z++) {
                 int height = roadheight + 2;
                 valz = (cz * 16 + z);
+
+                biomes.setBiome(x, z, Biome.PLAINS);
 
                 for (int y = 0; y < height; y++) {
                     if (y == 0) {
@@ -218,9 +217,9 @@ public class PlotGen extends ChunkGenerator {
 
     public List<BlockPopulator> getDefaultPopulators(World world) {
         if (temppmi == null) {
-            return Arrays.asList((BlockPopulator) new PlotRoadPopulator());
+            return Arrays.asList((BlockPopulator) new PlotRoadPopulator(), (BlockPopulator) new PlotContentPopulator());
         } else {
-            return Arrays.asList((BlockPopulator) new PlotRoadPopulator(temppmi));
+            return Arrays.asList((BlockPopulator) new PlotRoadPopulator(temppmi), (BlockPopulator) new PlotContentPopulator(temppmi));
         }
     }
 

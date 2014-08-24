@@ -1,31 +1,15 @@
 package com.worldcretornica.plotme;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStreamWriter;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.TreeMap;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
+import com.griefcraft.model.Protection;
+import com.sk89q.worldedit.bukkit.WorldEditPlugin;
+import com.worldcretornica.plotme.listener.PlotDenyListener;
+import com.worldcretornica.plotme.listener.PlotListener;
+import com.worldcretornica.plotme.listener.PlotWorldEditListener;
+import com.worldcretornica.plotme.worldedit.PlotWorldEdit;
 
 import net.milkbowl.vault.economy.Economy;
 
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
@@ -42,20 +26,18 @@ import org.mcstats.Metrics;
 import org.mcstats.Metrics.Graph;
 import org.yaml.snakeyaml.Yaml;
 
-import com.griefcraft.model.Protection;
-import com.sk89q.worldedit.bukkit.WorldEditPlugin;
-import com.worldcretornica.plotme.listener.PlotDenyListener;
-import com.worldcretornica.plotme.listener.PlotListener;
-import com.worldcretornica.plotme.listener.PlotWorldEditListener;
+import java.io.*;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 public class PlotMe extends JavaPlugin
 {
 	public static String NAME;
 	public static String PREFIX;
-	public static String VERSION;
-	public static String WEBSITE;
-	
-	public static Logger logger = Logger.getLogger("Minecraft");
+
+	public static Logger logger = null;
 		
 	public static Boolean usemySQL;
     public static String mySQLuname;
@@ -71,7 +53,8 @@ public class PlotMe extends JavaPlugin
     
     public static ConcurrentHashMap<String, PlotMapInfo> plotmaps = null;
     
-    public static WorldEditPlugin we = null;
+    public static WorldEditPlugin worldeditplugin = null;
+    public static PlotWorldEdit plotworldedit = null;
     public static Economy economy = null;
     public static Boolean usinglwc = false;
     
@@ -93,9 +76,8 @@ public class PlotMe extends JavaPlugin
 		SqlManager.closeConnection();
 		NAME = null;
 		PREFIX = null;
-		VERSION = null;
-		WEBSITE = null;
-		
+
+
 		logger = null;
 		
 		usemySQL = null;
@@ -109,7 +91,7 @@ public class PlotMe extends JavaPlugin
 		autoUpdate = null;
 		plotmaps = null;
 		configpath = null;
-		we = null;
+		worldeditplugin = null;
 		economy = null;
 		usinglwc = null;
 		playersignoringwelimit = null;
@@ -127,6 +109,7 @@ public class PlotMe extends JavaPlugin
 	public void onEnable()
 	{
 	    self = this;
+	    logger = getLogger();
 	    
 	    initialize();
 		
@@ -143,7 +126,20 @@ public class PlotMe extends JavaPlugin
 		
 		if(pm.getPlugin("WorldEdit") != null)
 		{
-			we = (WorldEditPlugin) pm.getPlugin("WorldEdit");
+			worldeditplugin = (WorldEditPlugin) pm.getPlugin("WorldEdit");
+			
+			try {
+				Class.forName("com.sk89q.worldedit.function.mask.Mask");
+				PlotMe.plotworldedit = (PlotWorldEdit) Class.forName("com.worldcretornica.plotme.worldedit.PlotWorldEdit6_0_0").getConstructor().newInstance();
+			} catch (Exception e) {
+				try {
+					PlotMe.plotworldedit = (PlotWorldEdit) Class.forName("com.worldcretornica.plotme.worldedit.PlotWorldEdit5_7").getConstructor().newInstance();
+				} catch (Exception e2) {
+					logger.warning("Unable to hook to WorldEdit properly, please contact the developper of plotme with your WorldEdit version.");
+					PlotMe.plotworldedit = null;
+				}
+			}
+			
 			pm.registerEvents(new PlotWorldEditListener(), this);			
 		}
 		
@@ -239,7 +235,7 @@ public class PlotMe extends JavaPlugin
 		}
 		else
 		{
-			logger.warning(PREFIX + "Configuration not found for PlotMe world '" + worldname + "' Using defaults");
+			logger.warning("Configuration not found for PlotMe world '" + worldname + "' Using defaults");
 			return new PlotGen();
 		}
 	}
@@ -254,10 +250,8 @@ public class PlotMe extends JavaPlugin
 		PluginDescriptionFile pdfFile = this.getDescription();
 		NAME = pdfFile.getName();
 		PREFIX = ChatColor.BLUE + "[" + NAME + "] " + ChatColor.RESET;
-		VERSION = pdfFile.getVersion();
-		WEBSITE = pdfFile.getWebsite();
 		configpath = getDataFolder().getAbsolutePath();
-		playersignoringwelimit = new HashSet<String>();
+		playersignoringwelimit = new HashSet<>();
 
 		if(!this.getDataFolder().exists()) 
 		{
@@ -274,12 +268,12 @@ public class PlotMe extends JavaPlugin
 		catch (FileNotFoundException e) {} 
 		catch (IOException e) 
 		{
-			logger.severe(PREFIX + "can't read configuration file");
+			logger.severe("Can't read configuration file");
 			e.printStackTrace();
 		} 
 		catch (InvalidConfigurationException e) 
 		{
-			logger.severe(PREFIX + "invalid configuration format");
+			logger.severe("Invalid configuration format");
 			e.printStackTrace();
 		}
         
@@ -385,7 +379,7 @@ public class PlotMe extends JavaPlugin
 			tempPlotInfo.RoadHeight = currworld.getInt("RoadHeight", currworld.getInt("WorldHeight", 64));
 			if(tempPlotInfo.RoadHeight > 250)
 			{
-				logger.severe(PREFIX + "RoadHeight above 250 is unsafe. This is the height at which your road is located. Setting it to 64.");
+				logger.severe("RoadHeight above 250 is unsafe. This is the height at which your road is located. Setting it to 64.");
 				tempPlotInfo.RoadHeight = 64;
 			}
 			tempPlotInfo.DaysToExpiration = currworld.getInt("DaysToExpiration", 7);
@@ -518,7 +512,7 @@ public class PlotMe extends JavaPlugin
 		} 
 		catch (IOException e) 
 		{
-			logger.severe(PREFIX + "error writting configurations");
+			logger.severe("Error writing configurations");
 			e.printStackTrace();
 		}
 		
@@ -539,8 +533,8 @@ public class PlotMe extends JavaPlugin
 		if(!playersignoringwelimit.contains(p.getName()))
 		{
 			playersignoringwelimit.add(p.getName());
-			if(we != null)
-				PlotWorldEdit.removeMask(p);
+			if(worldeditplugin != null)
+				PlotMe.plotworldedit.removeMask(p);
 		}
 	}
 	
@@ -549,8 +543,8 @@ public class PlotMe extends JavaPlugin
 		if(playersignoringwelimit.contains(p.getName()))
 		{
 			playersignoringwelimit.remove(p.getName());
-			if(we != null)
-				PlotWorldEdit.setMask(p);
+			if(worldeditplugin != null)
+				PlotMe.plotworldedit.setMask(p);
 		}
 	}
 	
@@ -995,10 +989,10 @@ public class PlotMe extends JavaPlugin
 				}
 		    }
 		} catch (FileNotFoundException e) {
-			logger.severe("[" + NAME + "] File not found: " + e.getMessage());
+			logger.severe("File not found: " + e.getMessage());
 			e.printStackTrace();
 		} catch (Exception e) {
-			logger.severe("[" + NAME + "] Error with configuration: " + e.getMessage());
+			logger.severe("Error with configuration: " + e.getMessage());
 			e.printStackTrace();
 		} finally {                      
 			if (input != null) try {
@@ -1027,7 +1021,7 @@ public class PlotMe extends JavaPlugin
 				
 				writer.close();
 			}catch (IOException e){
-				logger.severe("[" + NAME + "] Unable to create config file : " + Title + "!");
+				logger.severe("Unable to create config file : " + Title + "!");
 				logger.severe(e.getMessage());
 			} finally {                      
 				if (writer != null) try {
@@ -1063,10 +1057,10 @@ public class PlotMe extends JavaPlugin
 					input.close();
 			    }
 			} catch (FileNotFoundException e) {
-				logger.severe("[" + NAME + "] File not found: " + e.getMessage());
+				logger.severe("File not found: " + e.getMessage());
 				e.printStackTrace();
 			} catch (Exception e) {
-				logger.severe("[" + NAME + "] Error with configuration: " + e.getMessage());
+				logger.severe("Error with configuration: " + e.getMessage());
 				e.printStackTrace();
 			} finally {                      
 				if (writer != null) try {
@@ -1085,7 +1079,7 @@ public class PlotMe extends JavaPlugin
 		{
 			return addColor(captions.get(s));
 		}else{
-			logger.warning("[" + NAME + "] Missing caption: " + s);
+			logger.warning("Missing caption: " + s);
 			return "ERROR:Missing caption '" + s + "'";
 		}
 	}
